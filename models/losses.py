@@ -60,13 +60,11 @@ class NTXent(nn.Module):
             # all_gather fills the list as [<proc0>, <proc1>, ...]
             # TODO: try to rewrite it with pytorch official tools
             z_list = diffdist.functional.all_gather(z_list, z)
-            # split it into [<proc0_aug0>, <proc0_aug1>, ..., <proc0_aug(m-1)>, <proc1_aug(m-1)>, ...]
+            # split it into [<proc0_aug0>, <proc0_aug1>, ..., <proc(m-1)_aug0>, <proc(m-1)_aug1>, ...]
             z_list = [chunk for x in z_list for chunk in x.chunk(self.multiplier)]
             # sort it to [<proc0_aug0>, <proc1_aug0>, ...] that simply means [<batch_aug0>, <batch_aug1>, ...] as expected below
-            z_sorted = []
-            for m in range(self.multiplier):
-                for i in range(dist.get_world_size()):
-                    z_sorted.append(z_list[i * self.multiplier + m])
+            permutation = lambda idx : (idx % dist.get_world_size()) * self.multiplier + (idx // dist.get_world_size())
+            z_sorted = [z_list[permutation(i)] for i in range(len(z_list))]
             z = torch.cat(z_sorted, dim=0)
             n = z.shape[0]
 
